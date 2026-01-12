@@ -17,3 +17,6 @@ df = cleaner.handle_missing_values()
 # 4️⃣ Ölçekleme
 scaler = DataScaler(df, strategy="standard")
 df_scaled = scaler.scale()
+
+# 5️⃣ Örnek veri
+print("\nÖlçeklenmiş veriden ilk 5 satır:\n", df_scaled.head())
