@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import pandas as pd
-from typing import Optional
+from typing import Optional, List, Dict
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 
 # ----------------------------
@@ -15,34 +15,72 @@ class DataConfig:
         self.file_path = file_path
         self.file_type = file_type.lower()
 
+    # ----------------------------
     # Ekstra analiz fonksiyonları
+    # ----------------------------
     @staticmethod
     def get_zeros(df: pd.DataFrame) -> pd.Series:
+        """Sütunlardaki sıfır değer sayısı"""
         return (df == 0).sum()
 
     @staticmethod
     def get_missing(df: pd.DataFrame) -> pd.Series:
+        """Sütunlardaki eksik değer sayısı"""
         return df.isnull().sum()
 
     @staticmethod
     def get_numeric(df: pd.DataFrame) -> pd.DataFrame:
+        """Sayısal kolonları döndürür"""
         return df.select_dtypes(include=['int64','float64'])
 
     @staticmethod
     def get_categorical(df: pd.DataFrame) -> pd.DataFrame:
+        """Kategorik kolonları döndürür"""
         return df.select_dtypes(include=['object','category'])
 
     @staticmethod
-    def get_columns(df: pd.DataFrame) -> list:
+    def get_columns(df: pd.DataFrame) -> List[str]:
+        """Tüm kolon isimlerini döndürür"""
         return df.columns.tolist()
 
     @staticmethod
     def get_features_target(df: pd.DataFrame, target: str):
+        """Özellikler ve hedef sütunu ayırır"""
         if target not in df.columns:
             raise ValueError(f"'{target}' sütunu veri çerçevesinde bulunamadı.")
         X = df.drop(columns=[target])
         y = df[target]
         return X, y
+
+    @staticmethod
+    def get_sample(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
+        """Rastgele n satır örneği döndürür"""
+        return df.sample(n=n)
+
+    @staticmethod
+    def convert_types(df: pd.DataFrame, mapping: Dict[str, str]) -> pd.DataFrame:
+        """Belirli kolonları verilen tiplere çevirir"""
+        for col, dtype in mapping.items():
+            if col in df.columns:
+                df[col] = df[col].astype(dtype)
+            else:
+                print(f"Uyarı: '{col}' sütunu bulunamadı.")
+        return df
+
+    @staticmethod
+    def save(df: pd.DataFrame, path: str, file_type: str = "csv"):
+        """DataFrame'i belirtilen dosya tipinde kaydeder"""
+        file_type = file_type.lower()
+        if file_type == "csv":
+            df.to_csv(path, index=False)
+        elif file_type in ["xls", "xlsx"]:
+            df.to_excel(path, index=False)
+        elif file_type == "json":
+            df.to_json(path, orient="records")
+        elif file_type == "parquet":
+            df.to_parquet(path, index=False)
+        else:
+            raise ValueError(f"Desteklenmeyen dosya tipi: {file_type}")
 
 
 # ----------------------------
@@ -70,7 +108,7 @@ class BaseLoader(ABC):
 # ----------------------------
 class DataLoader(BaseLoader):
     """
-    Farklı formatlardaki verileri okuyup DataFrame döndüren somut sınıf.
+    Farklı formatlardaki verileri okuyup DataFrame döndüren sınıf.
     """
     def load(self) -> pd.DataFrame:
         if self.config.file_type == "csv":
@@ -79,6 +117,8 @@ class DataLoader(BaseLoader):
             self.df = pd.read_excel(self.config.file_path)
         elif self.config.file_type == "json":
             self.df = pd.read_json(self.config.file_path)
+        elif self.config.file_type == "parquet":
+            self.df = pd.read_parquet(self.config.file_path)
         else:
             raise ValueError(f"Desteklenmeyen dosya tipi: {self.config.file_type}")
         return self.df
@@ -94,6 +134,8 @@ class DataLoader(BaseLoader):
         print(self.df.info())
         print("\nEksik değerler:")
         print(self.df.isnull().sum())
+        print("\nSıfır değerler:")
+        print(DataConfig.get_zeros(self.df))
 
 
 # ----------------------------
