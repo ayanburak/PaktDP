@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from typing import List, Dict
 
 class DataLoader():
     """
@@ -37,6 +38,13 @@ class DataLoader():
     
 class DataConfig():
     
+    """
+    Veri konfigürasyonu ve ayarlarını tutar.
+    Ayrıca veri özetleme ve küçük analiz fonksiyonlarını içerir.
+    
+    İçerisine dataframe alır.
+    """
+
     def __init__(self, df = pd.DataFrame()):
         self.df = df
         
@@ -72,4 +80,43 @@ class DataConfig():
                     
             return duplicate_report
     
+    # Sadece sayısal kolonları döndürür [Dict]
+    def get_numeric(self) -> Dict[str, List[str]]:
+        return self.df.select_dtypes(include=['int64','float64']).to_dict()
     
+    # Sadece kategorik (metinsel) kolonları döndürür [Dict] 
+    def get_categorical(self) -> Dict[str, List[str]]:
+        return self.df.select_dtypes(include=['object','category']).to_dict()
+    
+    # Kolonların isimlerini döndürür [List]
+    def get_columns(self) -> List[str]:
+        return self.df.columns.tolist()
+    
+    # Verilerden girilen sayı kadar örnek gösterir, varsayılan 5 [DataFrame]
+    def get_sample(self, n: int = 5) -> pd.DataFrame:
+        return self.df.sample(n=n)
+    
+    # Girilen veri setindeki hedefi ve diğer kolonları ayırır, iki çıktı üretir.
+    # x = Hedeflenen kolon [DataFrame]
+    # y = Geri kalan bütün kolonlar [DataFrame] 
+    def get_features_target(self, target: str) -> pd.DataFrame:
+        if target not in self.df.columns:
+            raise ValueError(f"'{target}' sütunu veri çerçevesinde bulunamadı.")
+        X = self.df.drop(columns=[target])
+        y = self.df[target]
+        return X, y
+    
+    # Veri setini belirtilen dosya yoluna belirtilen doysa yoluyla kaydeder.
+    # Varsayılan olarak csv kaydeder.
+    def save(self, path: str, file_type: str = "csv"):
+        file_type = file_type.lower()
+        if file_type == "csv":
+            self.df.to_csv(path, index=False)
+        elif file_type in ["xls", "xlsx"]:
+            self.df.to_excel(path, index=False)
+        elif file_type == "json":
+            self.df.to_json(path, orient="records")
+        elif file_type == "parquet":
+            self.df.to_parquet(path, index=False)
+        else:
+            raise ValueError(f"Desteklenmeyen dosya tipi: {file_type}")
