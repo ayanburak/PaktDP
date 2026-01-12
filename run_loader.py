@@ -1,8 +1,8 @@
 from data_module import DataConfig, DataLoader, DataCleaner, DataScaler
 
 # 1️⃣ Veri yükleme
-config = DataConfig("train.csv")
-loader = DataLoader(config)
+config = DataConfig("train.csv")        # Dosya yolu burada
+loader = DataLoader(config.file_path)   # Sadece path (str) veriyoruz
 df = loader.load()
 loader.summary()
 

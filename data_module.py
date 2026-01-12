@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 import pandas as pd
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Union
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
+import os
 
 # ----------------------------
 # DataConfig
@@ -16,36 +17,30 @@ class DataConfig:
         self.file_type = file_type.lower()
 
     # ----------------------------
-    # Ekstra analiz fonksiyonları
+    # Analiz fonksiyonları
     # ----------------------------
     @staticmethod
     def get_zeros(df: pd.DataFrame) -> pd.Series:
-        """Sütunlardaki sıfır değer sayısı"""
         return (df == 0).sum()
 
     @staticmethod
     def get_missing(df: pd.DataFrame) -> pd.Series:
-        """Sütunlardaki eksik değer sayısı"""
         return df.isnull().sum()
 
     @staticmethod
     def get_numeric(df: pd.DataFrame) -> pd.DataFrame:
-        """Sayısal kolonları döndürür"""
         return df.select_dtypes(include=['int64','float64'])
 
     @staticmethod
     def get_categorical(df: pd.DataFrame) -> pd.DataFrame:
-        """Kategorik kolonları döndürür"""
         return df.select_dtypes(include=['object','category'])
 
     @staticmethod
     def get_columns(df: pd.DataFrame) -> List[str]:
-        """Tüm kolon isimlerini döndürür"""
         return df.columns.tolist()
 
     @staticmethod
     def get_features_target(df: pd.DataFrame, target: str):
-        """Özellikler ve hedef sütunu ayırır"""
         if target not in df.columns:
             raise ValueError(f"'{target}' sütunu veri çerçevesinde bulunamadı.")
         X = df.drop(columns=[target])
@@ -54,12 +49,10 @@ class DataConfig:
 
     @staticmethod
     def get_sample(df: pd.DataFrame, n: int = 5) -> pd.DataFrame:
-        """Rastgele n satır örneği döndürür"""
         return df.sample(n=n)
 
     @staticmethod
     def convert_types(df: pd.DataFrame, mapping: Dict[str, str]) -> pd.DataFrame:
-        """Belirli kolonları verilen tiplere çevirir"""
         for col, dtype in mapping.items():
             if col in df.columns:
                 df[col] = df[col].astype(dtype)
@@ -69,7 +62,6 @@ class DataConfig:
 
     @staticmethod
     def save(df: pd.DataFrame, path: str, file_type: str = "csv"):
-        """DataFrame'i belirtilen dosya tipinde kaydeder"""
         file_type = file_type.lower()
         if file_type == "csv":
             df.to_csv(path, index=False)
@@ -87,11 +79,7 @@ class DataConfig:
 # BaseLoader (ABC)
 # ----------------------------
 class BaseLoader(ABC):
-    """
-    Tüm Loader sınıfları için abstract base class.
-    """
-    def __init__(self, config: DataConfig):
-        self.config = config
+    def __init__(self):
         self.df: Optional[pd.DataFrame] = None
 
     @abstractmethod
@@ -108,19 +96,31 @@ class BaseLoader(ABC):
 # ----------------------------
 class DataLoader(BaseLoader):
     """
-    Farklı formatlardaki verileri okuyup DataFrame döndüren sınıf.
+    Dosya yolu, DataFrame veya dict ile çalışabilir.
     """
+    def __init__(self, data: Union[str, pd.DataFrame, dict]):
+        super().__init__()
+        self.input_data = data
+
     def load(self) -> pd.DataFrame:
-        if self.config.file_type == "csv":
-            self.df = pd.read_csv(self.config.file_path)
-        elif self.config.file_type in ["xls", "xlsx"]:
-            self.df = pd.read_excel(self.config.file_path)
-        elif self.config.file_type == "json":
-            self.df = pd.read_json(self.config.file_path)
-        elif self.config.file_type == "parquet":
-            self.df = pd.read_parquet(self.config.file_path)
+        if isinstance(self.input_data, pd.DataFrame):
+            self.df = self.input_data
+        elif isinstance(self.input_data, dict):
+            self.df = pd.DataFrame(self.input_data)
+        elif isinstance(self.input_data, str):
+            ext = os.path.splitext(self.input_data)[1].lower()
+            if ext == ".csv":
+                self.df = pd.read_csv(self.input_data)
+            elif ext in [".xls", ".xlsx"]:
+                self.df = pd.read_excel(self.input_data)
+            elif ext == ".json":
+                self.df = pd.read_json(self.input_data)
+            elif ext == ".parquet":
+                self.df = pd.read_parquet(self.input_data)
+            else:
+                raise ValueError(f"Desteklenmeyen dosya tipi: {ext}")
         else:
-            raise ValueError(f"Desteklenmeyen dosya tipi: {self.config.file_type}")
+            raise TypeError("Girdi tipi DataFrame, dict veya dosya yolu (str) olmalıdır.")
         return self.df
 
     def summary(self) -> None:
@@ -133,7 +133,7 @@ class DataLoader(BaseLoader):
         print("\nBilgi:")
         print(self.df.info())
         print("\nEksik değerler:")
-        print(self.df.isnull().sum())
+        print(DataConfig.get_missing(self.df))
         print("\nSıfır değerler:")
         print(DataConfig.get_zeros(self.df))
 
@@ -142,12 +142,8 @@ class DataLoader(BaseLoader):
 # BaseCleaner (ABC)
 # ----------------------------
 class BaseCleaner(ABC):
-    """
-    Temizleme işlemleri için abstract base class.
-    """
-    def __init__(self, df: pd.DataFrame, strategy: str = "mean"):
+    def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.strategy = strategy
 
     @abstractmethod
     def handle_missing_values(self) -> pd.DataFrame:
@@ -158,9 +154,10 @@ class BaseCleaner(ABC):
 # DataCleaner
 # ----------------------------
 class DataCleaner(BaseCleaner):
-    """
-    Eksik değerleri doldurma işlemleri.
-    """
+    def __init__(self, df: pd.DataFrame, strategy: str = "mean"):
+        super().__init__(df)
+        self.strategy = strategy
+
     def handle_missing_values(self) -> pd.DataFrame:
         for col in self.df.columns:
             if self.df[col].isnull().sum() > 0:
@@ -179,12 +176,8 @@ class DataCleaner(BaseCleaner):
 # BaseScaler (ABC)
 # ----------------------------
 class BaseScaler(ABC):
-    """
-    Ölçekleme işlemleri için abstract base class.
-    """
-    def __init__(self, df: pd.DataFrame, strategy: str = "standard"):
+    def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.strategy = strategy
 
     @abstractmethod
     def scale(self) -> pd.DataFrame:
@@ -195,9 +188,10 @@ class BaseScaler(ABC):
 # DataScaler
 # ----------------------------
 class DataScaler(BaseScaler):
-    """
-    MinMax, Standard, Robust ölçekleme.
-    """
+    def __init__(self, df: pd.DataFrame, strategy: str = "standard"):
+        super().__init__(df)
+        self.strategy = strategy
+
     def scale(self) -> pd.DataFrame:
         numeric_cols = self.df.select_dtypes(include=['float64','int64']).columns
         if self.strategy == "minmax":
