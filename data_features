@@ -1,0 +1,49 @@
+import pandas as pd
+
+class FeatureEngineer:
+    """
+    FeatureEngineer sınıfı, veri setinden yeni özellikler üretir.
+    Kullanıcı istediği kolonları ve işlemleri seçebilir.
+    """
+    
+    def __init__(self, df: pd.DataFrame):
+        
+        self.df = df  # İşlem yapılacak DataFrame'i sınıf içinde saklıyoruz
+
+    def combine_columns(self, columns: list, operation: str = "sum") -> pd.Series:
+        """
+        Birden fazla kolonu belirtilen işlemi uygulayarak birleştirir.
+
+        Bu fonksiyon, kullanıcıya esnek bir şekilde kolonlar üzerinde toplama,
+        çıkarma, çarpma veya bölme işlemleri yapma imkanı verir.
+
+        """
+        
+        # Kullanıcının verdiği tüm kolonların DataFrame'de olup olmadığını kontrol ediyoruz
+        if not all(col in self.df.columns for col in columns):
+            # Eğer eksik kolon varsa, hangi kolonlar eksikse onları listeleyip hata veriyoruz
+            missing = [col for col in columns if col not in self.df.columns]
+            raise ValueError(f"DataFrame'de bulunmayan kolonlar: {missing}")
+
+        # İlk kolonu başlangıç değeri olarak alıyoruz
+        # Bu sayede for döngüsünde diğer kolonlarla işlem yapabiliriz
+        result = self.df[columns[0]].copy()
+
+        # İlk kolon dışında kalan kolonlar üzerinde belirtilen işlemi uyguluyoruz
+        for col in columns[1:]:
+            if operation == "sum":
+                result += self.df[col]  # Toplama işlemi
+            elif operation == "subtract":
+                result -= self.df[col]  # Çıkarma işlemi
+            elif operation == "multiply":
+                result *= self.df[col]  # Çarpma işlemi
+            elif operation == "divide":
+                # Bölme işlemi sırasında sıfıra bölmeyi önlemek için
+                # 0 değerlerini çok küçük bir sayı ile değiştiriyoruz
+                result /= self.df[col].replace(0, 1e-9)
+            else:
+                # Kullanıcı geçersiz bir işlem girerse hata fırlatıyoruz
+                raise ValueError("Geçersiz işlem. Kullanılabilir: sum, subtract, multiply, divide")
+
+        # Tüm işlemler tamamlandıktan sonra sonucu döndürüyoruz
+        return result
