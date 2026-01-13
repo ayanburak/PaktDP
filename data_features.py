@@ -8,7 +8,7 @@ class FeatureEngineer:
     
     def __init__(self, df: pd.DataFrame):
         
-        self.df = df  # İşlem yapılacak DataFrame'i sınıf içinde saklıyoruz
+        self.df = df 
 
     def combine_columns(self, columns: list, operation: str = "sum") -> pd.Series:
         """
