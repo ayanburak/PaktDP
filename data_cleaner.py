@@ -20,6 +20,7 @@ class DataCleaner:
         # Kolon bazlı temizlik işlemlerini başlatıyoruz
         # Örnek: tek bir kolondaki null değerleri doldurma
         self.column = ColumnCleaner(self.df)
+        self.row = RowCleaner(self.df) 
 
 
 class TableCleaner:
@@ -184,4 +185,51 @@ class ColumnCleaner:
         if not mode_val.empty:
             self.df[column].fillna(mode_val[0], inplace=True)
 
+        return self.df
+
+class RowCleaner:
+    """
+    RowCleaner sınıfı, veri setindeki satır bazlı temizlik işlemlerini yapar.
+
+    Özellikler:
+    - Eksik veri oranı yüksek satırları kaldırma
+    - Duplicate (çift) satırları kaldırma
+    - Mantıksal hatalara sahip satırları filtreleme
+    """
+
+    def __init__(self, df: pd.DataFrame):
+        self.df = df  # İşlem yapılacak DataFrame
+
+    def drop_rows_with_missing_threshold(self, threshold: float = 0.5):
+        """
+        Eksik veri oranı threshold'dan fazla olan satırları siler.
+        """
+        # Eksik değer oranını hesapla
+        missing_ratio = self.df.isnull().mean(axis=1)
+        # Threshold'u aşan satırları sil
+        self.df = self.df[missing_ratio <= threshold]
+        return self.df
+
+    def drop_duplicate_rows(self):
+        """
+        Aynı satırların tekrarını kaldırır.
+        """
+        self.df = self.df.drop_duplicates()
+        return self.df
+
+    def drop_rows_with_condition(self, condition_func):
+        """
+        Kullanıcının verdiği mantıksal koşula göre satırları siler.
+
+        Parametreler:
+        ----------
+        condition_func : function
+            Her satırı alıp True/False döndüren fonksiyon.
+            True dönen satırlar silinir.
+
+        Örnek:
+        >>> rc.drop_rows_with_condition(lambda row: row['age'] < 0 or row['salary'] < 0)
+        """
+        mask = self.df.apply(condition_func, axis=1)
+        self.df = self.df[~mask]
         return self.df
